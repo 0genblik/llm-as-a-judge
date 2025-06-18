@@ -10,9 +10,9 @@ from datasets import load_dataset
 from scipy.stats import bootstrap
 import google.generativeai as genai
 
-MT_DATASET_ID = "lmsys/mt_bench_human_judgement"
-FLASH_MODEL_ID = "gemini-2.0-flash-lite"
-RATE_LIMIT_RPM = 30 
+MT_DATASET_ID = "lmsys/mt_bench_human_judgments"
+FLASH_MODEL_ID = "gemini-2.5-flash"
+RATE_LIMIT_RPM = 10
 CACHE_DIR = pathlib.Path(".gemini_cache")
 CACHE_DIR.mkdir(exist_ok=True)
 SEED = 42
@@ -175,7 +175,7 @@ sampled_pairs = random.sample(eligible, sample_size)
 # 2. Gemini judging loop
 
 
-st.write("### 2. Evaluating with Gemini Flash‑Lite …")
+st.write("### 2. Evaluating with Gemini Flash-Lite …")
 prog = st.progress(0.0)
 start_time = time.time()
 
@@ -198,11 +198,12 @@ prog.empty()
 
 # Convert HF Datasets -> lists before concatenation
 bag = build_vote_bag(list(gpt_rows) + list(human_rows) + gem_rows)
-agree, total, flags = agree_turn(bag[0], "gemini", "human")
+agree, total = agree_turn(bag[0], "gemini", "human")
+hits = np.concatenate([np.ones(agree), np.zeros(total-agree)])  
 ratio = agree / total if total else 0.0
 
-if len(flags) >= 2:
-    ci = bootstrap((flags,), lambda x: x.mean(axis=-1), n_resamples=10_000,
+if len(hits) >= 2:
+    ci = bootstrap((hits,), lambda x: x.mean(axis=-1), n_resamples=10_000,
                    confidence_level=0.95, method="basic").confidence_interval
     ci_low, ci_high = ci.low, ci.high
 else:
@@ -212,10 +213,10 @@ else:
 # Display
 
 
-st.subheader("Agreement with Human Judges (no‑tie, turn‑1)")
+st.subheader("Agreement with Human Judges (no-tie, turn-1)")
 col1, col2 = st.columns([1, 2])
-col1.metric("Gemini ↔ Human", f"{ratio*100:.1f}%",
-            help=f"N={total}\n95 % CI {ci_low*100:.1f} – {ci_high*100:.1f}")
+col1.metric("Gemini <-> Human", f"{ratio*100:.1f}%",
+            help=f"N={total}\n95% CI {ci_low*100:.1f} - {ci_high*100:.1f}")
 
 # Table and viz
 metrics_df = pd.DataFrame({"Agreement": [ratio], "CI low": [ci_low], "CI high": [ci_high]})
