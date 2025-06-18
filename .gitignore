@@ -1,2 +1,4 @@
 .venv/
 .env
+.gemini_cache
+gemini_vs_human_stats.json
